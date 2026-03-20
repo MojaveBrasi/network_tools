@@ -1,8 +1,6 @@
 #![allow(unused_imports, dead_code)]
 mod pkt_cap;
-use clap::{Args, Parser, Subcommand, builder::Str, command};
-
-use crate::pkt_cap::bind_and_listen;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 struct Cli {
@@ -31,7 +29,7 @@ fn main() {
         }
         Commands::Bind { iface_name } => {
             if let Some(i) = pkt_cap::get_interface(&iface_name) {
-                bind_and_listen(&i);
+                pkt_cap::bind_and_listen(&i);
             }
         }
         _ => {}
