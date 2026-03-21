@@ -2,12 +2,15 @@ use core::time;
 use derivative::Derivative;
 use pnet::datalink::Channel::Ethernet;
 use pnet::datalink::{self, NetworkInterface, interfaces};
+use pnet::ipnetwork::IpNetwork;
 use pnet::packet::ethernet::EtherTypes::{Ipv4, Ipv6};
 use pnet::packet::ethernet::*;
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::ipv6::{self, Ipv6Packet};
 use pnet::packet::{self, Packet, ipv4};
+use pnet::util::MacAddr;
+use std::fmt;
 use std::time::SystemTime;
 use thiserror::Error;
 
@@ -41,6 +44,35 @@ pub enum CaptureError {
     MalformedIpv6,
 }
 
+#[derive(Debug)]
+struct DisplayIpAddr<'a>(&'a Vec<IpNetwork>);
+
+impl<'a> fmt::Display for DisplayIpAddr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let formatted = self
+            .0
+            .iter()
+            .map(|ip| ip.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "{}", formatted)
+    }
+}
+
+#[derive(Debug)]
+struct DisplayMacAddr(Option<MacAddr>);
+
+impl fmt::Display for DisplayMacAddr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Some(mac) => write!(f, "{}", mac),
+            None => write!(f, "N/A"),
+        }
+    }
+}
+
+//TODO: Implementation for Displaying NetworkInterface.flags
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Capture {
@@ -52,23 +84,22 @@ pub struct Capture {
     payload: Vec<u8>, // more stuff later.
 }
 
-pub fn list_interfaces() {
+pub fn cmd_list() {
     let active_interfaces: Vec<datalink::NetworkInterface> = datalink::interfaces()
         .into_iter()
         .filter(|iface| iface.is_up() && !iface.ips.is_empty())
         .collect();
 
+    println!("------------");
     for iface in &active_interfaces {
-        let ipaddr = iface
-            .ips
-            .iter()
-            .map(|ip| ip.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
         println!(
-            "Interface {}: {} | IP: {:?}, MAC: {:?}",
-            iface.index, iface.name, ipaddr, iface.mac
+            "Interface {}: {} | IPAddrs: {} | MAC: {}",
+            iface.index,
+            iface.name,
+            DisplayIpAddr(&iface.ips),
+            DisplayMacAddr(iface.mac),
         );
+        println!("------------");
     }
 }
 
@@ -76,6 +107,29 @@ pub fn get_interface(input: &str) -> Option<NetworkInterface> {
     let ivec = interfaces();
     let iface = ivec.into_iter().find(|iface| iface.name == input);
     iface
+}
+
+pub fn cmd_info(iface_name: &str) {
+    if let Some(iface) = get_interface(&iface_name) {
+        println!("--------------------");
+        println!(
+            "Info for interface {}: {} | IPAddrs: {} | MAC: {} | Flags: {}",
+            iface.index,
+            iface.name,
+            DisplayIpAddr(&iface.ips),
+            DisplayMacAddr(iface.mac),
+            iface.flags
+        );
+        println!("--------------------");
+    }
+}
+pub fn print_interface_info(iface: &NetworkInterface) {
+    println!("Interface Info for {}", iface.name);
+    println!("Description: {}", iface.description);
+    println!("Index: {}", iface.index);
+    println!("Mac Address: {:?}", iface.mac);
+    println!("IP addresses: {:?}", DisplayIpAddr(&iface.ips));
+    println!("Flags: {}", iface.flags);
 }
 
 fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {

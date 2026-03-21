@@ -20,12 +20,10 @@ fn main() {
     let cli = Cli::parse();
     match &cli.cmd {
         Commands::List => {
-            pkt_cap::list_interfaces();
+            pkt_cap::cmd_list();
         }
         Commands::Info { iface_name } => {
-            if let Some(_i) = pkt_cap::get_interface(&iface_name) {
-                // Just give info about interface unless it doesn't exist
-            }
+            pkt_cap::cmd_info(iface_name);
         }
         Commands::Bind { iface_name } => {
             if let Some(i) = pkt_cap::get_interface(&iface_name) {
