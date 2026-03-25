@@ -4,7 +4,8 @@ use derivative::Derivative;
 use pnet::datalink::Channel::Ethernet;
 use pnet::datalink::{self, NetworkInterface, interfaces};
 use pnet::ipnetwork::IpNetwork;
-use pnet::packet::ethernet::EtherTypes::{Ipv4, Ipv6};
+use pnet::packet::arp::*;
+use pnet::packet::ethernet::EtherTypes::{Arp, Ipv4, Ipv6};
 use pnet::packet::ethernet::*;
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::Ipv4Packet;
@@ -20,7 +21,7 @@ use thiserror::Error;
 pub struct Capture {
     timestamp: SystemTime,
     length: u16,
-    internet_protocol: ip::InternetProtocol,
+    internet_protocol: ip::EthernetType,
     transport_protocol: ip::TransportProtocol,
     #[derivative(Debug = "ignore")]
     payload: Vec<u8>, // more stuff later.
@@ -36,6 +37,9 @@ pub enum CaptureError {
 
     #[error("Malformed IPv6 packet")]
     MalformedIpv6,
+
+    #[error("Malformed ARP packet")]
+    MalformedArp,
 }
 
 #[derive(Debug)]
@@ -127,7 +131,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             Ok(Capture {
                 timestamp: SystemTime::now(),
                 length: payload_len,
-                internet_protocol: ip::InternetProtocol::from(Ipv4),
+                internet_protocol: ip::EthernetType::from(Ipv4),
                 transport_protocol: ip::TransportProtocol::from(transport_proto),
                 payload: ipv4.payload().to_vec(),
             })
@@ -138,9 +142,25 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             Ok(Capture {
                 timestamp: SystemTime::now(),
                 length: ipv6.get_payload_length(),
-                internet_protocol: ip::InternetProtocol::from(Ipv6),
+                internet_protocol: ip::EthernetType::from(Ipv6),
                 transport_protocol: ip::TransportProtocol::from(transport_proto),
                 payload: ipv6.payload().to_vec(),
+            })
+        }
+        EtherTypes::Arp => {
+            let arp = ArpPacket::new(&eth_pkt.payload()).ok_or(CaptureError::MalformedArp)?;
+            let eth_type = arp.get_protocol_type();
+            let len: u16 = arp
+                .payload()
+                .len()
+                .try_into()
+                .expect("Arp payload too large for u16");
+            Ok(Capture {
+                timestamp: SystemTime::now(),
+                length: len,
+                internet_protocol: ip::EthernetType::from(eth_type),
+                transport_protocol: ip::TransportProtocol::NA,
+                payload: arp.payload().to_vec(),
             })
         }
         other => Err(CaptureError::UnsupportedProtocol(other)),

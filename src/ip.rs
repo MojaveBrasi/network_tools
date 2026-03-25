@@ -1,17 +1,19 @@
-use pnet::packet::ethernet::EtherTypes::{Ipv4, Ipv6};
 use pnet::packet::ethernet::{EtherType, EtherTypes};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+
 #[derive(Debug)]
-pub enum InternetProtocol {
+pub enum EthernetType {
     Ipv4,
     Ipv6,
+    Arp,
 }
 
-impl From<EtherType> for InternetProtocol {
+impl From<EtherType> for EthernetType {
     fn from(eth_type: EtherType) -> Self {
         match eth_type {
-            EtherTypes::Ipv4 => InternetProtocol::Ipv4,
-            EtherTypes::Ipv6 => InternetProtocol::Ipv6,
+            EtherTypes::Ipv4 => EthernetType::Ipv4,
+            EtherTypes::Ipv6 => EthernetType::Ipv6,
+            EtherTypes::Arp => EthernetType::Arp,
             other => panic!("Ethertype not Ipv4 or Ipv6. Cannot convert {:?}", other),
         }
     }
@@ -23,6 +25,7 @@ pub enum TransportProtocol {
     Udp,
     Icmp,
     IcmpV6,
+    NA,
     Unknown(u8), // preserve the raw value for unhandled cases
 }
 
