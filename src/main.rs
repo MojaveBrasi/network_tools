@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
-mod pkt_cap;
+mod ip;
+mod packet_cap;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -20,14 +21,14 @@ fn main() {
     let cli = Cli::parse();
     match &cli.cmd {
         Commands::List => {
-            pkt_cap::cmd_list();
+            packet_cap::cmd_list();
         }
         Commands::Info { iface_name } => {
-            pkt_cap::cmd_info(iface_name);
+            packet_cap::cmd_info(iface_name);
         }
         Commands::Bind { iface_name } => {
-            if let Some(i) = pkt_cap::get_interface(&iface_name) {
-                pkt_cap::bind_and_listen(&i);
+            if let Some(i) = packet_cap::get_interface(&iface_name) {
+                packet_cap::bind_and_listen(&i);
             }
         }
         _ => {}

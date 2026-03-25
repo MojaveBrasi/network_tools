@@ -1,5 +1,5 @@
 [package]
-name = "network_tools"
+name = "mojave_network_tools"
 version = "0.1.0"
 edition = "2024"
 

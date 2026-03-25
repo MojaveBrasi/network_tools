@@ -1,3 +1,4 @@
+use crate::ip::{self, TransportProtocol};
 use core::time;
 use derivative::Derivative;
 use pnet::datalink::Channel::Ethernet;
@@ -14,23 +15,16 @@ use std::fmt;
 use std::time::SystemTime;
 use thiserror::Error;
 
-#[derive(Debug)]
-pub enum InternetProtocol {
-    Ipv4,
-    Ipv6,
+#[derive(Derivative)]
+#[derivative(Debug)]
+pub struct Capture {
+    timestamp: SystemTime,
+    length: u16,
+    internet_protocol: ip::InternetProtocol,
+    transport_protocol: ip::TransportProtocol,
+    #[derivative(Debug = "ignore")]
+    payload: Vec<u8>, // more stuff later.
 }
-
-#[derive(Debug)]
-pub enum TransportProtocol {
-    Tcp,
-    Udp,
-    Icmp,
-    IcmpV6,
-    Unknown(u8), // preserve the raw value for unhandled cases
-}
-
-//TODO: Impl FROM pnet::EtherType -> pkt_cap::InternetProtocol
-//TODO: Impl FROM pnet::NextHeaderProtocol -> pkt_cap::TransportProtocol
 
 #[derive(Debug, Error)]
 pub enum CaptureError {
@@ -72,17 +66,6 @@ impl fmt::Display for DisplayMacAddr {
 }
 
 //TODO: Implementation for Displaying NetworkInterface.flags
-
-#[derive(Derivative)]
-#[derivative(Debug)]
-pub struct Capture {
-    timestamp: SystemTime,
-    length: u16,
-    internet_protocol: EtherType,
-    transport_protocol: IpNextHeaderProtocol,
-    #[derivative(Debug = "ignore")]
-    payload: Vec<u8>, // more stuff later.
-}
 
 pub fn cmd_list() {
     let active_interfaces: Vec<datalink::NetworkInterface> = datalink::interfaces()
@@ -140,21 +123,23 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             let total_len = ipv4.get_total_length() as u16;
             let header_len = ipv4.get_header_length() as u16;
             let payload_len = total_len - header_len;
+            let transport_proto = ipv4.get_next_level_protocol();
             Ok(Capture {
                 timestamp: SystemTime::now(),
                 length: payload_len,
-                internet_protocol: Ipv4,
-                transport_protocol: ipv4.get_next_level_protocol(),
+                internet_protocol: ip::InternetProtocol::from(Ipv4),
+                transport_protocol: ip::TransportProtocol::from(transport_proto),
                 payload: ipv4.payload().to_vec(),
             })
         }
         EtherTypes::Ipv6 => {
             let ipv6 = Ipv6Packet::new(&eth_pkt.payload()).ok_or(CaptureError::MalformedIpv6)?;
+            let transport_proto = ipv6.get_next_header();
             Ok(Capture {
                 timestamp: SystemTime::now(),
                 length: ipv6.get_payload_length(),
-                internet_protocol: Ipv6,
-                transport_protocol: ipv6.get_next_header(),
+                internet_protocol: ip::InternetProtocol::from(Ipv6),
+                transport_protocol: ip::TransportProtocol::from(transport_proto),
                 payload: ipv6.payload().to_vec(),
             })
         }
@@ -173,7 +158,7 @@ pub fn bind_and_listen(i: &NetworkInterface) {
             Ok(packet) => {
                 if let Some(eth_packet) = EthernetPacket::new(&packet) {
                     let cap = parse_payload(&eth_packet);
-                    println!("{:#?}", cap);
+                    println!("{:#?}", cap); //TODO: impl fmt::Display for captures
                 }
             }
             Err(e) => {
