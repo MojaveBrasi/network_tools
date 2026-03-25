@@ -1,25 +1,23 @@
-use crate::ip::{self, TransportProtocol};
-use core::time;
+use crate::ip::{self};
+use chrono::{DateTime, Local};
 use derivative::Derivative;
 use pnet::datalink::Channel::Ethernet;
 use pnet::datalink::{self, NetworkInterface, interfaces};
 use pnet::ipnetwork::IpNetwork;
+use pnet::packet::Packet;
 use pnet::packet::arp::*;
-use pnet::packet::ethernet::EtherTypes::{Arp, Ipv4, Ipv6};
+use pnet::packet::ethernet::EtherTypes::{Ipv4, Ipv6};
 use pnet::packet::ethernet::*;
-use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::ipv6::{self, Ipv6Packet};
-use pnet::packet::{self, Packet, ipv4};
+use pnet::packet::ipv6::Ipv6Packet;
 use pnet::util::MacAddr;
 use std::fmt;
-use std::time::SystemTime;
 use thiserror::Error;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Capture {
-    timestamp: SystemTime,
+    timestamp: DateTime<Local>,
     length: u16,
     internet_protocol: ip::EthernetType,
     transport_protocol: ip::TransportProtocol,
@@ -110,14 +108,6 @@ pub fn cmd_info(iface_name: &str) {
         println!("--------------------");
     }
 }
-pub fn print_interface_info(iface: &NetworkInterface) {
-    println!("Interface Info for {}", iface.name);
-    println!("Description: {}", iface.description);
-    println!("Index: {}", iface.index);
-    println!("Mac Address: {:?}", iface.mac);
-    println!("IP addresses: {:?}", DisplayIpAddr(&iface.ips));
-    println!("Flags: {}", iface.flags);
-}
 
 fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
     match eth_pkt.get_ethertype() {
@@ -129,7 +119,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             let payload_len = total_len - header_len;
             let transport_proto = ipv4.get_next_level_protocol();
             Ok(Capture {
-                timestamp: SystemTime::now(),
+                timestamp: Local::now(),
                 length: payload_len,
                 internet_protocol: ip::EthernetType::from(Ipv4),
                 transport_protocol: ip::TransportProtocol::from(transport_proto),
@@ -140,7 +130,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             let ipv6 = Ipv6Packet::new(&eth_pkt.payload()).ok_or(CaptureError::MalformedIpv6)?;
             let transport_proto = ipv6.get_next_header();
             Ok(Capture {
-                timestamp: SystemTime::now(),
+                timestamp: Local::now(),
                 length: ipv6.get_payload_length(),
                 internet_protocol: ip::EthernetType::from(Ipv6),
                 transport_protocol: ip::TransportProtocol::from(transport_proto),
@@ -156,7 +146,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
                 .try_into()
                 .expect("Arp payload too large for u16");
             Ok(Capture {
-                timestamp: SystemTime::now(),
+                timestamp: Local::now(),
                 length: len,
                 internet_protocol: ip::EthernetType::from(eth_type),
                 transport_protocol: ip::TransportProtocol::NA,
