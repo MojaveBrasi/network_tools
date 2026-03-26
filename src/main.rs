@@ -1,5 +1,4 @@
 #![allow(unused_imports, dead_code)]
-mod ip;
 mod packet_cap;
 use clap::{Parser, Subcommand};
 use std::thread;
