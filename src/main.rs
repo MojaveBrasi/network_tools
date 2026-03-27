@@ -1,8 +1,7 @@
-#![allow(unused_imports, dead_code)]
+#[allow(dead_code, unused_imports)]
 mod packet_cap;
 use clap::{Parser, Subcommand};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[derive(Parser)]
 struct Cli {
@@ -53,6 +52,6 @@ fn main() {
         _ => {}
     }
 
-    let duration = start.elapsed();
+    let duration = start.elapsed(); //TODO: Get this to print after a ctrl+c SIGTERM
     println!("Ran for {:?}", duration);
 }

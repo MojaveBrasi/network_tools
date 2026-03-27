@@ -5,9 +5,7 @@ use pnet::datalink::{self, NetworkInterface, interfaces};
 use pnet::ipnetwork::IpNetwork;
 use pnet::packet::Packet;
 use pnet::packet::arp::*;
-use pnet::packet::ethernet::EtherTypes::{Ipv4, Ipv6};
 use pnet::packet::ethernet::*;
-use pnet::packet::icmp::IcmpTypes::Timestamp;
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::ipv6::Ipv6Packet;
@@ -16,14 +14,11 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use thiserror::Error;
 
-/*TODO:
- * Extrapolate interface data into your own interface struct for reusability
- * Add references to interface info to Capture struct for efficiency
- * */
-
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Interface {
+    //TODO: Map interfaces to struct at user's discretion. Give aliases for interfaces. Store
+    //interfaces in database. Add more helpful fields later.
     index: u32,
     ipv4_addr: Vec<Ipv4Addr>,
     ipv6_addr: Vec<Ipv6Addr>,
@@ -39,7 +34,22 @@ pub struct IpCapture {
     transport_protocol: IpNextHeaderProtocol,
     length: u16,
     #[derivative(Debug = "ignore")]
-    payload: Vec<u8>, // more stuff later.
+    payload: Vec<u8>, // TODO: Change to hex value. Serialize to JSON, add to DB, give user option
+                      // to write data to a text file and print condensed info to console.
+}
+
+impl fmt::Display for IpCapture {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[{}] Source: {} | EtherType: {} | Protocol: {} | Length: {} bytes",
+            self.timestamp.format("%Y-%m-%d %H:%M:%S%.3f"),
+            self.source,
+            self.ethernet_frame_type,
+            self.transport_protocol,
+            self.length
+        )
+    }
 }
 
 #[derive(Derivative)]
@@ -48,15 +58,37 @@ pub struct ArpCapture {
     timestamp: DateTime<Local>,
     source: IpAddr,
     source_mac: MacAddr,
-    ethernet_frame_type: EtherType,
     operation: ArpOperation,
     hardware_type: ArpHardwareType,
+}
+
+impl fmt::Display for ArpCapture {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[{}] Source: {} - {} | Operation: {:?} | Hardware Type : {:?}",
+            self.timestamp.format("%Y-%m-%d %H:%M:%S%.3f"),
+            self.source,
+            self.source_mac,
+            self.operation,
+            self.hardware_type,
+        )
+    }
 }
 
 #[derive(Debug)]
 enum Capture {
     IP(IpCapture),
     ARP(ArpCapture),
+}
+
+impl fmt::Display for Capture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Capture::IP(ip) => write!(f, "{}", ip),
+            Capture::ARP(arp) => write!(f, "{}", arp),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -175,12 +207,11 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
                 timestamp: Local::now(),
                 source: IpAddr::from(arp.get_sender_proto_addr()),
                 source_mac: MacAddr::from(arp.get_sender_hw_addr()),
-                ethernet_frame_type: arp.get_protocol_type(),
                 operation: arp.get_operation(),
                 hardware_type: arp.get_hardware_type(),
             }))
         }
-        other => Err(CaptureError::UnsupportedProtocol(other)),
+        other => Err(CaptureError::UnsupportedProtocol(other)), //TODO: Consider other Ethertypes
     }
 }
 
@@ -194,8 +225,11 @@ pub fn bind_and_listen(i: &NetworkInterface) {
         match rx.next() {
             Ok(packet) => {
                 if let Some(eth_packet) = EthernetPacket::new(&packet) {
-                    let cap = parse_payload(&eth_packet);
-                    println!("{:#?}", cap); //TODO: impl fmt::Display for captures
+                    let capresult = parse_payload(&eth_packet);
+                    match capresult {
+                        Ok(capture) => println!("<<< {} >>>", capture),
+                        Err(e) => println!("Error: {}", e),
+                    }
                 }
             }
             Err(e) => {
