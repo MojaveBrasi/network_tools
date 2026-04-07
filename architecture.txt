@@ -1,0 +1,41 @@
+                              ┌─────────────────────┐
+                              │  Devices on LAN     │
+                              └─────────────────────┘
+                                         ↑ │
+                                         │ │
+┌─────────────────┐                      │ │
+│ Local Interface │           ARP Req    │ │ 
+└──────────────── ┘                      │ │
+        │                                │ │ Data
+        │ Data                           │ │ 
+        ↓                                │ ↓
+┌──────────────────────────────────────────────────┐
+│  Dedicated capture thread (std::thread, one per  │
+│  interface) — blocks on pnet, sends to channel   │
+└────────┬──────────────────────┬──────────────────┘
+         │                      │ 
+         ↓                      ↓
+  ┌─────────────┐         ┌────────────────────┐
+  │ Capture Log │         │ Individual captures│ 
+  │(no payload) │         │ With payload info  │
+  └──────────── ┘         └────────────────────┘
+         │                           │
+         ↓      Tokio Runtime        ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Tokio thread        │    Tokio thread     │   Tokio thread     │
+│                      │                     │                    │
+│  ┌─────────────────┐ │ ┌─────────────────┐ │ ┌─────────────────┐│
+│  │ Recieve Capture │ │ │ Recieve Raw     │ │ │ Axum web server ││
+│  │ Log from        │ │ │ Captured Data   │ │ │ REST+WebSocket  ││
+│  │ channel, write  │ │ │ Sift through,   │ │ │ frontend comms  ││
+│  │ to sqlx         │ │ │ analyze data    │ │ └─────────────────┘│
+│  └─────────────────┘ │ └─────────────────┘ |                    │
+└─────────────────────────────────────────────────────────────────┘
+                                                    │
+                                                    │ 
+                                                    ↓
+                                  ┌────────────────────┐
+                                  │ Web Front end      │
+                                  │ Info Dashboard     │
+                                  │ Svelte JS          │
+                                  └────────────────────┘

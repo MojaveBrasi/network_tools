@@ -30,15 +30,16 @@ enum Scope {
     LAN,   // list interfaces on whole subnet
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
     let start = Instant::now();
     match &cli.cmd {
         Commands::List { cmd } => {
             match cmd {
                 Scope::Local => packet_cap::cmd_list(),
-                Scope::LAN => packet_cap::cmd_list(), //TODO: Need different function. Send ARP
-                                                      //packet
+                Scope::LAN => packet_cap::cmd_list(), //TODO: Need different function for listing
+                                                      //other devices' interfaces. Need to send ARPpacket
             }
         }
         Commands::Info { iface_name } => {
@@ -53,5 +54,5 @@ fn main() {
     }
 
     let duration = start.elapsed(); //TODO: Get this to print after a ctrl+c SIGTERM
-    println!("Ran for {:?}", duration);
+    println!("Finished. Process ran for {:?}", duration);
 }

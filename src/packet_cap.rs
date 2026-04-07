@@ -12,6 +12,7 @@ use pnet::packet::ipv6::Ipv6Packet;
 use pnet::util::MacAddr;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Derivative)]
@@ -35,7 +36,6 @@ pub struct IpCapture {
     length: u16,
     #[derivative(Debug = "ignore")]
     payload: Vec<u8>, // TODO: Change to hex value. Serialize to JSON, add to DB, give user option
-                      // to write data to a text file and print condensed info to console.
 }
 
 impl fmt::Display for IpCapture {
@@ -215,6 +215,8 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
     }
 }
 
+//Simply bind and print info to stdout. No DB entries. Use for testing
+//interfaces and commands, or for just watching the data flow
 pub fn bind_and_listen(i: &NetworkInterface) {
     let (mut _tx, mut rx) = match datalink::channel(&i, Default::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
@@ -227,13 +229,72 @@ pub fn bind_and_listen(i: &NetworkInterface) {
                 if let Some(eth_packet) = EthernetPacket::new(&packet) {
                     let capresult = parse_payload(&eth_packet);
                     match capresult {
-                        Ok(capture) => println!("<<< {} >>>", capture),
+                        Ok(cap) => println!("<<< {} >>>", cap),
                         Err(e) => println!("Error: {}", e),
                     }
                 }
             }
             Err(e) => {
                 panic!("An error occured while reading: {}", e);
+            }
+        }
+    }
+}
+
+struct KnownInterfaces {
+    unique_iface_count: u16,
+    unique_ifaces: Vec<NetworkInterface>,
+}
+
+struct IpRecord {
+    mac: MacAddr,
+    ipv4: Option<Ipv4Addr>,
+    ipv6: Option<Ipv6Addr>,
+}
+
+struct IpRecordList {
+    unique_addr_count: u16,
+    unique_addrs: Vec<IpRecord>,
+}
+
+struct CapLog<'a> {
+    cap_count: u16,
+    cap_duration: std::time::Duration,
+    ip_addrs: &'a IpRecordList,
+}
+
+pub fn bind_and_catalog(i: &NetworkInterface, ip_list: &mut IpRecordList) {
+    //TODO: Forget iplist. We'll pass a DB handle with that + more once it's ready
+    let (mut _tx, mut rx) = match datalink::channel(&i, Default::default()) {
+        Ok(Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => panic!("Unhandled Channel Type"),
+        Err(e) => panic!("Error binding to interface: {}", e),
+    };
+    let mut log = CapLog {
+        cap_count: 0,
+        cap_duration: Duration::from_secs(0),
+        ip_addrs: &ip_list,
+    };
+    loop {
+        match rx.next() {
+            Ok(packet) => {
+                if let Some(eth_packet) = EthernetPacket::new(&packet) {
+                    let capresult = parse_payload(&eth_packet);
+                    match capresult {
+                        Ok(cap) => {
+                            log.cap_count += 1;
+                            match cap {
+                                Capture::IP(ipcap) => {}
+                                _ => {} //TODO: Cross-reference unique Ip addresses known by local db.
+                            }
+                            println!("COUNT: {}", log.cap_count);
+                        }
+                        Err(e) => println!("Error: {}", e),
+                    }
+                }
+            }
+            Err(e) => {
+                panic!("EEEEEEEE{}", e);
             }
         }
     }
