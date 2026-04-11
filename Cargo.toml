@@ -11,3 +11,5 @@ pnet = "0.35.0"
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
 thiserror = "2.0.18"
 tokio = { version = "1.51.0", features = ["full"] }
+bytesize = "2.3.1"
+walkdir = "2.5.0"
