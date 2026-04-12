@@ -1,10 +1,6 @@
-use bytesize::ByteSize;
 use chrono::{DateTime, Local};
-use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::ConnectOptions;
+use sqlx::{Database, Sqlite, migrate::MigrateDatabase};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 
 #[derive(Debug)]
@@ -33,9 +29,9 @@ pub struct ColumnInfo {
     pub primary_key: bool,
 }
 
-fn has_sqlite_extension(p: &Path) -> bool {
+fn has_sqlite_extension(path: &Path) -> bool {
     matches!(
-        p.extension().and_then(|s| s.to_str()),
+        path.extension().and_then(|s| s.to_str()),
         Some("db" | "sqlite" | "sqlite3")
     )
 }
@@ -43,7 +39,7 @@ fn has_sqlite_extension(p: &Path) -> bool {
 /* Every valid SQLite database file begins with the following 16 bytes (in hex):
 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00.
 This byte sequence corresponds to the UTF-8 string "SQLite format 3"
-including the nul terminator character at the end.*/
+including the null terminator character at the end.*/
 fn is_sqlite_magic(p: &Path) -> bool {
     use std::io::Read;
     let Ok(mut f) = std::fs::File::open(p) else {
@@ -53,8 +49,8 @@ fn is_sqlite_magic(p: &Path) -> bool {
     matches!(f.read_exact(&mut magic), Ok(())) && magic == *b"SQLite format 3\0"
 }
 
-pub fn get_databases(root: &Path) -> Vec<PathBuf> {
-    WalkDir::new(root)
+pub fn get_databases(rootpath: &Path) -> Vec<PathBuf> {
+    WalkDir::new(rootpath)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -64,7 +60,28 @@ pub fn get_databases(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub fn list_databases(root: &Path) {
-    let dbs = get_databases(root);
-    println!("DATABASES: {:?}", dbs); //TODO: impl Display for Vec<PathBuf>
+pub fn list_databases(rootpath: &Path) {
+    println!("---DATABASES---");
+    let db_list = get_databases(rootpath);
+    if db_list.is_empty() {
+        println!("No databases found.");
+    } else {
+        let mut count: u8 = 0;
+        for db in db_list {
+            count += 1;
+            println!("{}: {}", count, db.to_str().unwrap_or("Invalid. Seek help"));
+            //TODO: handle to_str() failure better... eventually... maybe
+        }
+    }
+}
+
+pub async fn create_database(filename: &str) {
+    match Sqlite::create_database(&filename).await {
+        Ok(_) => println!("SQlite database created: {}", filename,),
+        Err(e) => println!("ERROR: {}", e),
+    }
+}
+
+pub async fn write_captures_to_db(path: &Path) {
+    todo!()
 }

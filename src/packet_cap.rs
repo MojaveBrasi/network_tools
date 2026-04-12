@@ -6,14 +6,12 @@ use pnet::ipnetwork::IpNetwork;
 use pnet::packet::Packet;
 use pnet::packet::arp::*;
 use pnet::packet::ethernet::*;
-use pnet::packet::icmpv6::ndp::Icmpv6Codes;
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::ipv6::Ipv6Packet;
 use pnet::util::MacAddr;
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -108,7 +106,6 @@ struct IpRecord {
     ipv4: Option<Ipv4Addr>,
     ipv6: Option<Ipv6Addr>,
 }
-
 
 #[derive(Debug, Error)]
 pub enum CaptureError {

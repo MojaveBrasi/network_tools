@@ -1,11 +1,13 @@
-### Roadmap
-* Get basic functionality of the database working
-* Go back through the code and handle todo's
-* Pre-requisites for expanding scope from local device to LAN:
-    - Tokio architecture
-    - Database schema for captures
-    - Database schema for cataloging Ip/Macs
-    - Send & Handle ARP packets
+***ROADMAP***
+
+# Near Term Goals
+- [] Basic Tokio architecture
+- [] Database schema for captures
+- [] Database schema for cataloging Ip/Macs
+- [] Settings.json (serde)
+- [] Send & Handle ARP packets
+
+## Longer Term Goals
 * Catalogue and match Ip/Macs based on known standars
     - Link local address ranges
     - Broadcast/Gateway addresses

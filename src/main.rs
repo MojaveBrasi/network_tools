@@ -1,13 +1,17 @@
-#[allow(dead_code, unused_imports, unused_variables)]
-mod packet_cap;
 mod cap_db;
+mod packet_cap;
 
-use std::path::Path;
 use clap::{Parser, Subcommand};
+use std::path::Path;
 use std::time::Instant;
 
 use crate::packet_cap::Capture;
 
+/* TODO: Refactor the whole command line. Actually learn how
+* to use Clap. The following mess of structs and enums is
+* the method that Claude told me to use. Therefore it is
+* AI slop. I haven't even read the Clap documentation. I will
+* need to fix this before expanding the scope of the project */
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -22,11 +26,21 @@ enum Commands {
     },
     Info {
         iface_name: String,
+        /*TODO: Refactor this command to provide info about other
+         * objects in the program: mac addrs, ip addrs, interfaces,
+         * databases, settings, maybe other stuff */
     },
     Bind {
         iface_name: String,
     },
-    Placeholder,
+    Create {
+        #[command(subcommand)]
+        cmd: CreateCmds,
+    },
+    Edit {
+        #[command(subcommand)]
+        cmd: EditCmds,
+    },
 }
 
 #[derive(Subcommand)]
@@ -37,9 +51,22 @@ enum ListCmds {
     Db,    // List sqlite databases. Always in project dir for now
 }
 
+#[derive(Subcommand)]
+enum CreateCmds {
+    Db,
+    Settings,
+}
+
+#[derive(Subcommand)]
+enum EditCmds {
+    Db,
+    Settings,
+}
+
 #[tokio::main]
 async fn main() {
-    let database_path = Path::new("."); //TODO: Allow user to change default path for sqlite db
+    let db_root = ".";
+    let db_path = Path::new(db_root); //TODO: Allow user to change default path for sqlite db
     let cli = Cli::parse();
     let start = Instant::now();
     match &cli.cmd {
@@ -48,7 +75,7 @@ async fn main() {
                 ListCmds::Local => packet_cap::cmd_list(),
                 ListCmds::LAN => packet_cap::cmd_list(), //TODO: Need different function for listing other devices' interfaces. Need to send ARPpacket
                 ListCmds::Known => packet_cap::cmd_list(), //TODO: Collect Addrs & store in known AddrDB
-                ListCmds::Db => cap_db::list_databases(database_path),
+                ListCmds::Db => cap_db::list_databases(db_path),
             }
         }
         Commands::Info { iface_name } => {
@@ -64,6 +91,13 @@ async fn main() {
                 tokio::signal::ctrl_c().await.unwrap();
             }
         }
+        Commands::Create { cmd } => match cmd {
+            CreateCmds::Db => {
+                let db_filename = "test.db";
+                cap_db::create_database(&db_filename).await;
+            }
+            _ => {}
+        },
         _ => {}
     }
 
