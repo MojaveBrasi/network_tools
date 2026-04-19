@@ -64,7 +64,7 @@ enum EditCmds {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let db_root = ".";
     let db_path = Path::new(db_root); //TODO: Allow user to change default path for sqlite db
     let cli = Cli::parse();
@@ -94,7 +94,7 @@ async fn main() {
         Commands::Create { cmd } => match cmd {
             CreateCmds::Db => {
                 let db_filename = "test.db";
-                cap_db::create_database(&db_filename).await;
+                cap_db::create_db(&db_filename).await?;
             }
             _ => {}
         },
@@ -103,4 +103,5 @@ async fn main() {
 
     let duration = start.elapsed(); //TODO: Get this to print after a ctrl+c SIGTERM
     println!("Finished. Process ran for {:?}", duration);
+    Ok(())
 }

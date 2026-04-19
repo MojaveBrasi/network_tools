@@ -1,5 +1,6 @@
+use anyhow::bail;
 use chrono::{DateTime, Local};
-use sqlx::{Database, Sqlite, migrate::MigrateDatabase};
+use sqlx::{Pool, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -75,13 +76,27 @@ pub fn list_databases(rootpath: &Path) {
     }
 }
 
-pub async fn create_database(filename: &str) {
-    match Sqlite::create_database(&filename).await {
-        Ok(_) => println!("SQlite database created: {}", filename,),
-        Err(e) => println!("ERROR: {}", e),
+pub async fn create_db(path: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
+    if Sqlite::database_exists(path).await.unwrap_or(false) {
+        bail!("Database already exists"); //TODO: figure out if this is a good idea or not
+    }
+    Sqlite::create_database(path).await?;
+    let pool = SqlitePool::connect(path)
+        .await
+        .expect("could not connect to the database");
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+    Ok(pool)
+}
+
+pub async fn connect_to_db(path: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
+    if !Sqlite::database_exists(path).await.unwrap_or(false) {
+        create_db(path).await
+    } else {
+        Ok(SqlitePool::connect(path).await?)
     }
 }
 
-pub async fn write_captures_to_db(path: &Path) {
+pub async fn write_captures_to_db(db: Pool<Sqlite>) {
     todo!()
 }
