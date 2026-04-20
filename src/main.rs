@@ -1,4 +1,5 @@
 mod cap_db;
+mod net;
 mod packet_cap;
 
 use clap::{Parser, Subcommand};
@@ -6,7 +7,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::cap_db::create_sqlite_pool;
-use crate::packet_cap::{Capture, IpCapture};
+use crate::packet_cap::IpCapture;
 
 /* TODO: Refactor the whole command line. Actually learn how
 * to use Clap. The following mess of structs and enums is

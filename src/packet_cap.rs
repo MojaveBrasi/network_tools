@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 use derivative::Derivative;
 use pnet::datalink::Channel::Ethernet;
 use pnet::datalink::{self, NetworkInterface, interfaces};
@@ -17,20 +17,10 @@ use tokio::sync::mpsc;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct Interface {
-    //TODO: Map interfaces to struct at user's discretion. Give aliases for interfaces. Store
-    //interfaces in database. Add more helpful fields later.
-    index: u32,
-    ipv4_addr: Vec<Ipv4Addr>,
-    ipv6_addr: Vec<Ipv6Addr>,
-    mac_addr: Option<MacAddr>,
-}
-
-#[derive(Derivative)]
-#[derivative(Debug)]
 pub struct IpCapture {
-    pub timestamp: DateTime<Local>,
+    pub timestamp: DateTime<Utc>,
     pub source: IpAddr,
+    pub dest: IpAddr,
     pub ethernet_frame_type: EtherType,
     pub transport_protocol: IpNextHeaderProtocol,
     pub length: u16,
@@ -55,7 +45,7 @@ impl fmt::Display for IpCapture {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct ArpCapture {
-    timestamp: DateTime<Local>,
+    timestamp: DateTime<Utc>,
     source: IpAddr,
     source_mac: MacAddr,
     operation: ArpOperation,
@@ -89,22 +79,6 @@ impl fmt::Display for Capture {
             Capture::ARP(arp) => write!(f, "{}", arp),
         }
     }
-}
-
-struct KnownInterfaces {
-    unique_iface_count: u16,
-    unique_ifaces: Vec<NetworkInterface>,
-}
-
-struct KnownAddresses {
-    unique_addr_count: u16,
-    unique_addrs: Vec<IpRecord>,
-}
-
-struct IpRecord {
-    mac: MacAddr,
-    ipv4: Option<Ipv4Addr>,
-    ipv6: Option<Ipv6Addr>,
 }
 
 #[derive(Debug, Error)]
@@ -198,8 +172,9 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
             let header_len = ipv4.get_header_length() as u16;
             let payload_len = total_len - header_len;
             Ok(Capture::IP(IpCapture {
-                timestamp: Local::now(),
+                timestamp: Utc::now(),
                 source: IpAddr::from(ipv4.get_source()),
+                dest: IpAddr::from(ipv4.get_destination()),
                 length: payload_len,
                 ethernet_frame_type: EtherTypes::Ipv4,
                 transport_protocol: ipv4.get_next_level_protocol(),
@@ -209,8 +184,9 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
         EtherTypes::Ipv6 => {
             let ipv6 = Ipv6Packet::new(&eth_pkt.payload()).ok_or(CaptureError::MalformedIpv6)?;
             Ok(Capture::IP(IpCapture {
-                timestamp: Local::now(),
+                timestamp: Utc::now(),
                 source: IpAddr::from(ipv6.get_source()),
+                dest: IpAddr::from(ipv6.get_destination()),
                 length: ipv6.get_payload_length(),
                 ethernet_frame_type: EtherTypes::Ipv6,
                 transport_protocol: ipv6.get_next_header(),
@@ -220,7 +196,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
         EtherTypes::Arp => {
             let arp = ArpPacket::new(&eth_pkt.payload()).ok_or(CaptureError::MalformedArp)?;
             Ok(Capture::ARP(ArpCapture {
-                timestamp: Local::now(),
+                timestamp: Utc::now(),
                 source: IpAddr::from(arp.get_sender_proto_addr()),
                 source_mac: MacAddr::from(arp.get_sender_hw_addr()),
                 operation: arp.get_operation(),

@@ -1,9 +1,11 @@
 use crate::IpCapture;
+use crate::net;
 use anyhow::bail;
 use chrono::{DateTime, Local};
 use sqlx::{Pool, QueryBuilder, Sqlite, SqlitePool, migrate::MigrateDatabase, query_builder};
 use std::path::{Path, PathBuf};
 use tokio::{sync::mpsc, time::Duration, time::interval};
+use tracing::error;
 use walkdir::WalkDir;
 
 #[derive(Debug)]
@@ -74,8 +76,11 @@ pub fn list_databases(rootpath: &Path) {
         let mut count: u8 = 0;
         for db in db_list {
             count += 1;
-            println!("{}: {}", count, db.to_str().unwrap_or("Invalid. Seek help"));
-            //TODO: handle to_str() failure better... eventually... maybe
+            println!(
+                "{}: {}",
+                count,
+                db.to_str().unwrap_or("How the fuck did this method fail?")
+            );
         }
     }
 }
@@ -103,19 +108,20 @@ pub async fn create_sqlite_pool(path: &str) -> Result<Pool<Sqlite>, anyhow::Erro
     }
 }
 
-//Write bulk data to db
-async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) {
+async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), sqlx::Error> {
     let mut qb = QueryBuilder::<Sqlite>::new(
         "INSERT INTO packet_capture (timestamp, src_ip, dst_ip, protocol, length)",
     );
-    //TODO: URGENT: Implement the right casts for these datatypes. to_string is a bad idea
+    // Not storing the ethertype (ipv4 or ipv6) because I'm converting both to bytes here
     qb.push_values(buffer.iter(), |mut row, packet| {
-        row.push_bind(packet.timestamp.to_string())
-            .push_bind(packet.source.to_string())
-            .push_bind(packet.ethernet_frame_type.to_string())
+        row.push_bind(packet.timestamp.timestamp_nanos_opt().unwrap_or(0))
+            .push_bind(net::ip_to_bytes(packet.source).to_vec())
+            .push_bind(net::ip_to_bytes(packet.dest).to_vec())
             .push_bind(packet.transport_protocol.to_string())
             .push_bind(packet.length);
     });
+    qb.build().execute(pool).await?;
+    Ok(())
 }
 
 pub async fn write_captures_to_db(mut rx: mpsc::Receiver<IpCapture>, pool: SqlitePool) {
@@ -128,12 +134,20 @@ pub async fn write_captures_to_db(mut rx: mpsc::Receiver<IpCapture>, pool: Sqlit
                 match packet {
                     Some(p) => {
                         buffer.push(p);
-                        if buffer.len() > 256 {
+                        if buffer.len() >= 256 {
+                            if let Err(e) = flush(&pool, &mut buffer).await {
+                                tracing::error!("Flush failed. Moving on");
+                            }
                         }
                     }
                     _ => {}
                 }
             }
+            _ = flush_timer.tick() => {
+                    if let Err(e) = flush(&pool, &mut buffer).await {
+                        tracing::error!("Flush failed. Moving on");
+                    }
+                }
         }
     }
 }
