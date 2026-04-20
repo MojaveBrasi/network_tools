@@ -2,18 +2,14 @@ mod cap_db;
 mod net;
 mod packet_cap;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::time::Instant;
 
 use crate::cap_db::create_sqlite_pool;
 use crate::packet_cap::IpCapture;
 
-/* TODO: Refactor the whole command line. Actually learn how
-* to use Clap. The following mess of structs and enums is
-* the method that Claude told me to use. Therefore it is
-* AI slop. I haven't even read the Clap documentation. I will
-* need to fix this before expanding the scope of the project */
+// I refactored the whole parser and now it's sexy
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -22,47 +18,80 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[command(aliases = ["iface", "i"])]
+    Interface {
+        #[command(subcommand)]
+        cmd: InterfaceCommands,
+    },
+    #[command(aliases = ["addr", "a"])]
+    Address {
+        #[command(subcommand)]
+        cmd: AddressCommands,
+    },
+    #[command(aliases = ["db", "d"])]
+    Database {
+        #[command(subcommand)]
+        cmd: DatabaseCommands,
+    },
+    #[command(aliases = ["set", "s"])]
+    Settings {
+        #[command(subcommand)]
+        cmd: SettingsCommands,
+    },
+    #[command(alias = "b")]
+    Bind { iface_name: String },
+}
+
+#[derive(ValueEnum, Clone, Copy)]
+enum Scope {
+    Local,
+    Lan,
+    Known,
+}
+
+#[derive(Subcommand)]
+enum InterfaceCommands {
+    /// Get info about a given interface
+    Info,
+    /// List Interfaces in a given scope
     List {
-        #[command(subcommand)]
-        cmd: ListCmds,
-    },
-    Info {
-        iface_name: String,
-        /*TODO: Refactor this command to provide info about other
-         * objects in the program: mac addrs, ip addrs, interfaces,
-         * databases, settings, maybe other stuff */
-    },
-    Bind {
-        iface_name: String,
-    },
-    Create {
-        #[command(subcommand)]
-        cmd: CreateCmds,
-    },
-    Edit {
-        #[command(subcommand)]
-        cmd: EditCmds,
+        #[arg(value_enum, default_value_t = Scope::Local)]
+        scope: Scope,
     },
 }
 
 #[derive(Subcommand)]
-enum ListCmds {
-    Local, // list interfaces on local device only
-    LAN,   // list interfaces on whole subnet
-    Known, // List Known Addresses from anywhere
-    Db,    // List sqlite databases. Always in project dir for now
+enum AddressCommands {
+    /// List info of given addresss
+    Info,
+    List {
+        #[arg(value_enum, default_value_t = Scope::Local)]
+        scope: Scope,
+    },
 }
 
 #[derive(Subcommand)]
-enum CreateCmds {
-    Db,
-    Settings,
+enum DatabaseCommands {
+    /// Create db with given name in given dir
+    /// Default name if none provided: depends on capture type
+    /// Default directory if none provided: "." unless specified in settings
+    Create { db_name: String, db_dir: String },
+    /// List info of given database
+    Info { db_name: String },
+    /// List known databases
+    List,
+    /// List directory of last used database
+    Dir,
+    /// List size of given databases
+    Size { db_name: String },
 }
 
 #[derive(Subcommand)]
-enum EditCmds {
-    Db,
-    Settings,
+enum SettingsCommands {
+    /// Create Settings with given name
+    Create { settings_name: String },
+    /// List info of given settings
+    Info { settings_name: String },
 }
 
 #[tokio::main]
@@ -72,17 +101,33 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let start = Instant::now();
     match &cli.cmd {
-        Commands::List { cmd } => {
-            match cmd {
-                ListCmds::Local => packet_cap::cmd_list(),
-                ListCmds::LAN => packet_cap::cmd_list(), //TODO: Need different function for listing other devices' interfaces. Need to send ARPpacket
-                ListCmds::Known => packet_cap::cmd_list(), //TODO: Collect Addrs & store in known AddrDB
-                ListCmds::Db => cap_db::list_databases(db_path),
-            }
-        }
-        Commands::Info { iface_name } => {
-            packet_cap::cmd_info(iface_name);
-        }
+        Commands::Interface { cmd } => match cmd {
+            InterfaceCommands::Info => todo!(),
+            InterfaceCommands::List { scope } => match scope {
+                Scope::Local => todo!(),
+                Scope::Lan => todo!(),
+                Scope::Known => todo!(),
+            },
+        },
+        Commands::Address { cmd } => match cmd {
+            AddressCommands::Info => todo!(),
+            AddressCommands::List { scope } => match scope {
+                Scope::Local => todo!(),
+                Scope::Lan => todo!(),
+                Scope::Known => todo!(),
+            },
+        },
+        Commands::Database { cmd } => match cmd {
+            DatabaseCommands::Create { db_name, db_dir } => todo!(),
+            DatabaseCommands::Info { db_name } => todo!(),
+            DatabaseCommands::List => todo!(),
+            DatabaseCommands::Dir => todo!(),
+            DatabaseCommands::Size { db_name } => todo!(),
+        },
+        Commands::Settings { cmd } => match cmd {
+            SettingsCommands::Create { settings_name } => todo!(),
+            SettingsCommands::Info { settings_name } => todo!(),
+        },
         Commands::Bind { iface_name } => {
             if let Some(iface) = packet_cap::get_interface(&iface_name) {
                 let pool = create_sqlite_pool("test.db").await?;
@@ -93,14 +138,6 @@ async fn main() -> anyhow::Result<()> {
                 tokio::signal::ctrl_c().await.unwrap();
             }
         }
-        Commands::Create { cmd } => match cmd {
-            CreateCmds::Db => {
-                let db_filename = "test.db"; //TODO: Eventually get this from settings.json
-                cap_db::create_db(&db_filename).await?;
-            }
-            _ => {}
-        },
-        _ => {}
     }
 
     let duration = start.elapsed(); //TODO: Get this to print after a ctrl+c SIGTERM
