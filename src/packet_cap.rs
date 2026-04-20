@@ -29,11 +29,11 @@ pub struct Interface {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct IpCapture {
-    timestamp: DateTime<Local>,
-    source: IpAddr,
-    ethernet_frame_type: EtherType,
-    transport_protocol: IpNextHeaderProtocol,
-    length: u16,
+    pub timestamp: DateTime<Local>,
+    pub source: IpAddr,
+    pub ethernet_frame_type: EtherType,
+    pub transport_protocol: IpNextHeaderProtocol,
+    pub length: u16,
     #[derivative(Debug = "ignore")]
     payload: Vec<u8>, // TODO: Change to hex value. Serialize to JSON, add to DB, give user option
 }
@@ -233,7 +233,7 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
 
 //Simply bind and print info to stdout. No DB entries. Use for testing
 //interfaces and commands, or for just watching the data flow
-pub fn bind_and_listen(i: &NetworkInterface, sender: mpsc::Sender<Capture>) {
+pub fn bind_and_listen(i: &NetworkInterface, sender: mpsc::Sender<IpCapture>) {
     let (mut _tx, mut eth_reciever) = match datalink::channel(&i, Default::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
         Ok(_) => panic!("Unhandled Channel Type"),
@@ -245,12 +245,15 @@ pub fn bind_and_listen(i: &NetworkInterface, sender: mpsc::Sender<Capture>) {
                 if let Some(eth_packet) = EthernetPacket::new(&packet) {
                     let capresult = parse_payload(&eth_packet);
                     match capresult {
-                        Ok(cap) => {
-                            println!("<<< {} >>>", cap);
-                            if sender.blocking_send(cap).is_err() {
-                                break;
+                        Ok(cap) => match cap {
+                            Capture::IP(ip_cap) => {
+                                println!("<<< {} >>>", ip_cap);
+                                if sender.blocking_send(ip_cap).is_err() {
+                                    break;
+                                }
                             }
-                        }
+                            _ => {} //TODO: ARP captures. Need separate ARP table
+                        },
                         Err(e) => println!("Error: {}", e),
                     }
                 }

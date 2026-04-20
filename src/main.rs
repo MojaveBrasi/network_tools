@@ -5,7 +5,8 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 use std::time::Instant;
 
-use crate::packet_cap::Capture;
+use crate::cap_db::create_sqlite_pool;
+use crate::packet_cap::{Capture, IpCapture};
 
 /* TODO: Refactor the whole command line. Actually learn how
 * to use Clap. The following mess of structs and enums is
@@ -82,18 +83,18 @@ async fn main() -> anyhow::Result<()> {
             packet_cap::cmd_info(iface_name);
         }
         Commands::Bind { iface_name } => {
-            if let Some(i) = packet_cap::get_interface(&iface_name) {
-                let (sender, mut _receiver) = tokio::sync::mpsc::channel::<Capture>(1024);
+            if let Some(iface) = packet_cap::get_interface(&iface_name) {
+                let pool = create_sqlite_pool("test.db").await?;
+                let (sender, receiver) = tokio::sync::mpsc::channel::<IpCapture>(1024);
                 std::thread::spawn(move || {
-                    packet_cap::bind_and_listen(&i, sender);
+                    packet_cap::bind_and_listen(&iface, sender);
                 });
-                //TODO: Tokio spawn join handle. Write to DB here
                 tokio::signal::ctrl_c().await.unwrap();
             }
         }
         Commands::Create { cmd } => match cmd {
             CreateCmds::Db => {
-                let db_filename = "test.db";
+                let db_filename = "test.db"; //TODO: Eventually get this from settings.json
                 cap_db::create_db(&db_filename).await?;
             }
             _ => {}
