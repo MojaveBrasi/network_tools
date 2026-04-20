@@ -1,11 +1,10 @@
 use crate::IpCapture;
-use crate::net;
+use crate::network::ip_to_bytes;
 use anyhow::bail;
 use chrono::{DateTime, Local};
-use sqlx::{Pool, QueryBuilder, Sqlite, SqlitePool, migrate::MigrateDatabase, query_builder};
+use sqlx::{Pool, QueryBuilder, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::path::{Path, PathBuf};
 use tokio::{sync::mpsc, time::Duration, time::interval};
-use tracing::error;
 use walkdir::WalkDir;
 
 #[derive(Debug)]
@@ -115,8 +114,8 @@ async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), sql
     // Not storing the ethertype (ipv4 or ipv6) because I'm converting both to bytes here
     qb.push_values(buffer.iter(), |mut row, packet| {
         row.push_bind(packet.timestamp.timestamp_nanos_opt().unwrap_or(0))
-            .push_bind(net::ip_to_bytes(packet.source).to_vec())
-            .push_bind(net::ip_to_bytes(packet.dest).to_vec())
+            .push_bind(ip_to_bytes(packet.source).to_vec())
+            .push_bind(ip_to_bytes(packet.dest).to_vec())
             .push_bind(packet.transport_protocol.to_string())
             .push_bind(packet.length);
     });
