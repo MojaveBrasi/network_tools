@@ -1,6 +1,5 @@
 use crate::IpCapture;
 use crate::network::ip_to_bytes;
-use anyhow::{Ok, bail};
 use chrono::{DateTime, Local};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::path::{Path, PathBuf};
@@ -31,6 +30,21 @@ pub struct ColumnInfo {
     pub col_type: String,
     pub not_null: bool,
     pub primary_key: bool,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DatabaseError {
+    #[error("Database already exists")]
+    AlreadyExists,
+
+    #[error("Database contains no tables")]
+    NoTables,
+
+    #[error("SQLx error: {0}")]
+    Sqlx(#[from] sqlx::Error),
+
+    #[error("SQLx migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
 }
 
 fn has_sqlite_extension(path: &Path) -> bool {
@@ -84,31 +98,33 @@ pub fn list_databases(rootpath: &Path) {
     }
 }
 
-pub async fn create_db(name: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
+pub async fn create_db(name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
+    let name = if name.ends_with(".db") {
+        name.to_string()
+    } else {
+        format!("{}.db", name)
+    };
     //This check SHOULD be redundant since ideally the caller checks if a db exists
     //before calling create_db... But this makes it idiot proof
-    if Sqlite::database_exists(name).await.unwrap_or(false) {
-        bail!("Database already exists");
+    if Sqlite::database_exists(&name).await? {
+        return Err(DatabaseError::AlreadyExists);
     }
-    //TODO: If name does not end with '.db', add it
-    Sqlite::create_database(name).await?;
-    let pool = SqlitePool::connect(name)
-        .await
-        .expect("could not connect to the database");
+    Sqlite::create_database(&name).await?;
+    let pool = SqlitePool::connect(&name).await?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
     Ok(pool)
 }
 
-pub async fn create_sqlite_pool(path: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
-    if !Sqlite::database_exists(path).await.unwrap_or(false) {
+pub async fn create_sqlite_pool(path: &str) -> Result<Pool<Sqlite>, DatabaseError> {
+    if !Sqlite::database_exists(path).await? {
         create_db(path).await
     } else {
         Ok(SqlitePool::connect(path).await?)
     }
 }
 
-pub async fn database_info(path: &str) -> Result<Vec<String>, anyhow::Error> {
+pub async fn database_info(path: &str) -> Result<Vec<String>, DatabaseError> {
     let pool = SqlitePool::connect(path).await?;
 
     let rows = sqlx::query(
@@ -117,7 +133,7 @@ pub async fn database_info(path: &str) -> Result<Vec<String>, anyhow::Error> {
     .fetch_all(&pool)
     .await?;
     if rows.is_empty() {
-        anyhow::bail!("Nothing in the database")
+        return Err(DatabaseError::NoTables);
     }
 
     let mut v = Vec::new();
@@ -131,7 +147,7 @@ pub async fn database_info(path: &str) -> Result<Vec<String>, anyhow::Error> {
     Ok(v)
 }
 
-async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), anyhow::Error> {
+async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), DatabaseError> {
     let mut qb = QueryBuilder::<Sqlite>::new(
         "INSERT INTO packet_capture (timestamp, src_ip, dst_ip, protocol, length)",
     );
