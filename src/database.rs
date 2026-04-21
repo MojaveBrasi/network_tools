@@ -1,8 +1,8 @@
 use crate::IpCapture;
 use crate::network::ip_to_bytes;
-use anyhow::bail;
+use anyhow::{Ok, bail};
 use chrono::{DateTime, Local};
-use sqlx::{Pool, QueryBuilder, Sqlite, SqlitePool, migrate::MigrateDatabase};
+use sqlx::{Pool, QueryBuilder, Row, Sqlite, SqlitePool, migrate::MigrateDatabase};
 use std::path::{Path, PathBuf};
 use tokio::{sync::mpsc, time::Duration, time::interval};
 use walkdir::WalkDir;
@@ -16,7 +16,7 @@ pub struct DbInfo {
 }
 
 /// Per-table summary.
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow)]
 pub struct TableInfo {
     pub name: String,
     pub row_count: i64,
@@ -84,14 +84,15 @@ pub fn list_databases(rootpath: &Path) {
     }
 }
 
-pub async fn create_db(path: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
+pub async fn create_db(name: &str) -> Result<Pool<Sqlite>, anyhow::Error> {
     //This check SHOULD be redundant since ideally the caller checks if a db exists
     //before calling create_db... But this makes it idiot proof
-    if Sqlite::database_exists(path).await.unwrap_or(false) {
+    if Sqlite::database_exists(name).await.unwrap_or(false) {
         bail!("Database already exists");
     }
-    Sqlite::create_database(path).await?;
-    let pool = SqlitePool::connect(path)
+    //TODO: If name does not end with '.db', add it
+    Sqlite::create_database(name).await?;
+    let pool = SqlitePool::connect(name)
         .await
         .expect("could not connect to the database");
 
@@ -107,7 +108,30 @@ pub async fn create_sqlite_pool(path: &str) -> Result<Pool<Sqlite>, anyhow::Erro
     }
 }
 
-async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), sqlx::Error> {
+pub async fn database_info(path: &str) -> Result<Vec<String>, anyhow::Error> {
+    let pool = SqlitePool::connect(path).await?;
+
+    let rows = sqlx::query(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    )
+    .fetch_all(&pool)
+    .await?;
+    if rows.is_empty() {
+        anyhow::bail!("Nothing in the database")
+    }
+
+    let mut v = Vec::new();
+    let mut count = 0;
+    for row in rows {
+        count += 1;
+        let x = row.get(count);
+        v.push(x);
+    }
+
+    Ok(v)
+}
+
+async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), anyhow::Error> {
     let mut qb = QueryBuilder::<Sqlite>::new(
         "INSERT INTO packet_capture (timestamp, src_ip, dst_ip, protocol, length)",
     );

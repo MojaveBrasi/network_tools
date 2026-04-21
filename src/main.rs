@@ -120,7 +120,16 @@ async fn main() -> anyhow::Result<()> {
             DatabaseCommands::Create { db_dir } => {
                 let db = create_db(db_dir).await?;
             }
-            DatabaseCommands::Info { db_name } => todo!(),
+            DatabaseCommands::Info { db_name } => match database_info(db_name).await {
+                Ok(columns) => {
+                    for c in columns {
+                        println!(">>>{}", c);
+                    }
+                }
+                Err(e) => {
+                    println!("damn. {}", e);
+                }
+            },
             DatabaseCommands::List => {
                 list_databases(db_path);
             }
