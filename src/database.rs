@@ -67,10 +67,10 @@ fn is_sqlite_magic(p: &Path) -> bool {
     matches!(f.read_exact(&mut magic), Ok(())) && magic == *b"SQLite format 3\0"
 }
 
-// Why does this take 1.14 seconds?
-// Fuck it, just load this at startup in the background.
-pub fn get_databases(rootpath: &Path) -> Vec<PathBuf> {
-    WalkDir::new(rootpath)
+// Max depth for search is 2. Don't hide your db
+pub fn get_databases(db_path: &Path) -> Vec<PathBuf> {
+    WalkDir::new(db_path)
+        .max_depth(2)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -80,9 +80,9 @@ pub fn get_databases(rootpath: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub fn list_databases(rootpath: &Path) {
+pub fn list_databases(db_path: &Path) {
     println!("---DATABASES---");
-    let db_list = get_databases(rootpath);
+    let db_list = get_databases(db_path);
     if db_list.is_empty() {
         println!("No databases found.");
     } else {
@@ -98,12 +98,16 @@ pub fn list_databases(rootpath: &Path) {
     }
 }
 
-pub async fn create_db(name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
-    let name = if name.ends_with(".db") {
-        name.to_string()
+fn dbfmt(db_name: &str) -> String {
+    if db_name.ends_with(".db") {
+        db_name.to_string()
     } else {
-        format!("{}.db", name)
-    };
+        format!("{}.db", db_name)
+    }
+}
+
+pub async fn create_db(db_name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
+    let name = dbfmt(db_name);
     //This check SHOULD be redundant since ideally the caller checks if a db exists
     //before calling create_db... But this makes it idiot proof
     if Sqlite::database_exists(&name).await? {
@@ -116,35 +120,33 @@ pub async fn create_db(name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
     Ok(pool)
 }
 
-pub async fn create_sqlite_pool(path: &str) -> Result<Pool<Sqlite>, DatabaseError> {
-    if !Sqlite::database_exists(path).await? {
-        create_db(path).await
+pub async fn create_sqlite_pool(db_name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
+    let name = dbfmt(db_name);
+    if !Sqlite::database_exists(db_name).await? {
+        create_db(db_name).await
     } else {
-        Ok(SqlitePool::connect(path).await?)
+        Ok(SqlitePool::connect(db_name).await?)
     }
 }
 
-pub async fn database_info(path: &str) -> Result<Vec<String>, DatabaseError> {
-    let pool = SqlitePool::connect(path).await?;
+pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> {
+    let name = dbfmt(db_name);
+    let pool = SqlitePool::connect(&db_name).await?;
 
     let rows = sqlx::query(
-        "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        "SELECT sql FROM sqlite_master \
+         WHERE sql IS NOT NULL \
+         ORDER BY tbl_name, type DESC, name",
     )
     .fetch_all(&pool)
     .await?;
+
     if rows.is_empty() {
         return Err(DatabaseError::NoTables);
     }
 
-    let mut v = Vec::new();
-    let mut count = 0;
-    for row in rows {
-        count += 1;
-        let x = row.get(count);
-        v.push(x);
-    }
-
-    Ok(v)
+    let ddl = rows.iter().map(|row| row.get::<String, _>("sql")).collect();
+    Ok(ddl)
 }
 
 async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), DatabaseError> {

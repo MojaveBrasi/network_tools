@@ -74,7 +74,7 @@ enum DatabaseCommands {
     /// Create db with given name in given dir
     /// Default name if none provided: depends on capture type
     /// Default directory if none provided: "." unless specified in settings
-    Create { db_dir: String },
+    Create { db_name: String },
     /// List info of given database
     Info { db_name: String },
     /// List known databases
@@ -117,8 +117,8 @@ async fn main() -> anyhow::Result<()> {
             },
         },
         Commands::Database { cmd } => match cmd {
-            DatabaseCommands::Create { db_dir } => {
-                let db = create_db(db_dir).await?;
+            DatabaseCommands::Create { db_name } => {
+                let db = create_db(db_name).await?;
             }
             DatabaseCommands::Info { db_name } => match database_info(db_name).await {
                 Ok(columns) => {
@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
                 list_databases(db_path);
             }
             DatabaseCommands::Dir => {
-                println!("Current primary database directory: {}", db_root);
+                println!("Current primary database directory: '{}'", db_root);
             }
             DatabaseCommands::Size { db_name } => todo!(),
         },
