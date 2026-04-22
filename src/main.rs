@@ -4,7 +4,7 @@ mod network;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::time::Instant;
-
+use tokio::runtime::Runtime;
 use crate::database::*;
 use crate::network::*;
 
@@ -95,10 +95,18 @@ enum SettingsCommands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     let db_root = ".";
     let db_path = Path::new(db_root); //TODO: Allow user to change default path for sqlite db
     let cli = Cli::parse();
     let start = Instant::now();
+
     match &cli.cmd {
         Commands::Interface { cmd } => match cmd {
             InterfaceCommands::Info { iface_name } => interface_info(iface_name),
@@ -148,6 +156,9 @@ async fn main() -> anyhow::Result<()> {
                 let (sender, receiver) = tokio::sync::mpsc::channel::<IpCapture>(1024);
                 std::thread::spawn(move || {
                     network::bind_and_listen(&iface, sender);
+                });
+                Runtime::new().unwrap().block_on(async move {
+                    write_captures_to_db(receiver, pool).await;
                 });
                 tokio::signal::ctrl_c().await.unwrap();
             }

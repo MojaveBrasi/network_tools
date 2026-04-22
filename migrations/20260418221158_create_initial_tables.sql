@@ -1,8 +1,7 @@
-CREATE TABLE IF NOT EXISTS packet_captures (
+CREATE TABLE IF NOT EXISTS packet_capture (
     timestamp   INTEGER NOT NULL,
-    ether_type  TEXT    NOT NULL,
     src_ip      BLOB    NOT NULL,
-    dst_ip      TEXT    NOT NULL,
+    dst_ip      BLOB    NOT NULL,
     protocol    TEXT    NOT NULL,
     length      INTEGER NOT NULL
 );

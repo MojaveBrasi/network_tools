@@ -149,6 +149,7 @@ pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> 
     Ok(ddl)
 }
 
+#[tracing::instrument(skip_all, fields(batch_size = buffer.len()))]
 async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), DatabaseError> {
     let mut qb = QueryBuilder::<Sqlite>::new(
         "INSERT INTO packet_capture (timestamp, src_ip, dst_ip, protocol, length)",
@@ -175,9 +176,13 @@ pub async fn write_captures_to_db(mut rx: mpsc::Receiver<IpCapture>, pool: Sqlit
                 match packet {
                     Some(p) => {
                         buffer.push(p);
+                        let count = buffer.len();
+                        tracing::trace!(count, "Packet added to buffer");
                         if buffer.len() >= 256 {
                             if let Err(e) = flush(&pool, &mut buffer).await {
-                                tracing::error!("Flush failed. Moving on");
+                                tracing::error!(error = %e, "Flush failed (buffer full)");
+                            } else {
+                                tracing::debug!("Flushed to db (buffer full)");
                             }
                         }
                     }
@@ -186,7 +191,9 @@ pub async fn write_captures_to_db(mut rx: mpsc::Receiver<IpCapture>, pool: Sqlit
             }
             _ = flush_timer.tick() => {
                     if let Err(e) = flush(&pool, &mut buffer).await {
-                        tracing::error!("Flush failed. Moving on");
+                        tracing::error!(error = %e, "Flush failed (timer)");
+                    } else {
+                        tracing::debug!("Flushed to db (timer)");
                     }
                 }
         }

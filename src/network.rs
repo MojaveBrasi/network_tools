@@ -252,8 +252,6 @@ fn parse_payload(eth_pkt: &EthernetPacket) -> Result<Capture, CaptureError> {
     }
 }
 
-//Simply bind and print info to stdout. No DB entries. Use for testing
-//interfaces and commands, or for just watching the data flow
 pub fn bind_and_listen(i: &NetworkInterface, sender: mpsc::Sender<IpCapture>) {
     let (mut _tx, mut eth_reciever) = match datalink::channel(&i, Default::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
