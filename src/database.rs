@@ -68,8 +68,9 @@ fn is_sqlite_magic(p: &Path) -> bool {
 }
 
 // Max depth for search is 2. Don't hide your db
-pub fn get_databases(db_path: &Path) -> Vec<PathBuf> {
-    WalkDir::new(db_path)
+pub fn get_databases(db_dir: &str) -> Vec<PathBuf> {
+    let dir = PathBuf::from(&db_dir);
+    WalkDir::new(dir)
         .max_depth(2)
         .follow_links(false)
         .into_iter()
@@ -80,9 +81,9 @@ pub fn get_databases(db_path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub fn list_databases(db_path: &Path) {
+pub fn list_databases(db_dir: &str) {
     println!("---DATABASES---");
-    let db_list = get_databases(db_path);
+    let db_list = get_databases(db_dir);
     if db_list.is_empty() {
         println!("No databases found.");
     } else {
@@ -122,16 +123,16 @@ pub async fn create_db(db_name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
 
 pub async fn create_sqlite_pool(db_name: &str) -> Result<Pool<Sqlite>, DatabaseError> {
     let name = dbfmt(db_name);
-    if !Sqlite::database_exists(db_name).await? {
-        create_db(db_name).await
+    if !Sqlite::database_exists(&name).await? {
+        create_db(&name).await
     } else {
-        Ok(SqlitePool::connect(db_name).await?)
+        Ok(SqlitePool::connect(&name).await?)
     }
 }
 
 pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> {
     let name = dbfmt(db_name);
-    let pool = SqlitePool::connect(&db_name).await?;
+    let pool = SqlitePool::connect(&name).await?;
 
     let rows = sqlx::query(
         "SELECT sql FROM sqlite_master \

@@ -2,10 +2,10 @@ mod application_state;
 mod database;
 mod network;
 
+use crate::application_state::State;
 use crate::database::*;
 use crate::network::*;
 use clap::{Parser, Subcommand, ValueEnum};
-use std::path::Path;
 use std::time::Instant;
 
 // I refactored the whole parser and now it's sexy
@@ -102,10 +102,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let db_root = ".";
-    let db_path = Path::new(db_root); //TODO: Allow user to change default path for sqlite db
+    let state = State::init();
     let cli = Cli::parse();
-    let start = Instant::now();
 
     match &cli.cmd {
         Commands::Interface { cmd } => match cmd {
@@ -139,10 +137,13 @@ async fn main() -> anyhow::Result<()> {
                 }
             },
             DatabaseCommands::List => {
-                list_databases(db_path);
+                list_databases(&state.default_db_dir);
             }
             DatabaseCommands::Dir => {
-                println!("Current primary database directory: '{}'", db_root);
+                println!(
+                    "Current primary database directory: '{}'",
+                    state.default_db_dir
+                );
             }
             DatabaseCommands::Size { db_name } => todo!(),
         },
@@ -152,18 +153,24 @@ async fn main() -> anyhow::Result<()> {
         },
         Commands::Bind { iface_name } => {
             if let Some(iface) = get_interface(&iface_name) {
+                tokio::spawn(async move {
+                    let start = Instant::now();
+                    tokio::signal::ctrl_c().await.unwrap();
+                    let duration = start.elapsed();
+                    println!("");
+                    println!("<< Finished. Process ran for {:?} >>", duration);
+                    std::process::exit(0);
+                });
                 let pool = create_sqlite_pool("test.db").await?;
                 let (sender, receiver) = tokio::sync::mpsc::channel::<IpCapture>(1024);
                 std::thread::spawn(move || {
+                    println!("<<< STARTING PACKET CAPTURE >>>");
                     network::bind_and_listen(&iface, sender);
                 });
                 database::write_captures_to_db(receiver, pool).await;
-                tokio::signal::ctrl_c().await.unwrap();
             }
         }
     }
 
-    let duration = start.elapsed();
-    println!("Finished. Process ran for {:?}", duration);
     Ok(())
 }
