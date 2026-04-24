@@ -1,12 +1,12 @@
+mod application_state;
 mod database;
 mod network;
 
+use crate::database::*;
+use crate::network::*;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::time::Instant;
-use tokio::runtime::Runtime;
-use crate::database::*;
-use crate::network::*;
 
 // I refactored the whole parser and now it's sexy
 #[derive(Parser)]
@@ -157,9 +157,7 @@ async fn main() -> anyhow::Result<()> {
                 std::thread::spawn(move || {
                     network::bind_and_listen(&iface, sender);
                 });
-                Runtime::new().unwrap().block_on(async move {
-                    write_captures_to_db(receiver, pool).await;
-                });
+                database::write_captures_to_db(receiver, pool).await;
                 tokio::signal::ctrl_c().await.unwrap();
             }
         }

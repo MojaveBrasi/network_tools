@@ -151,6 +151,9 @@ pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> 
 
 #[tracing::instrument(skip_all, fields(batch_size = buffer.len()))]
 async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), DatabaseError> {
+    if buffer.is_empty() {
+        return Ok(());
+    }
     let mut qb = QueryBuilder::<Sqlite>::new(
         "INSERT INTO packet_capture (timestamp, src_ip, dst_ip, protocol, length)",
     );
@@ -163,6 +166,7 @@ async fn flush(pool: &SqlitePool, buffer: &mut Vec<IpCapture>) -> Result<(), Dat
             .push_bind(packet.length);
     });
     qb.build().execute(pool).await?;
+    buffer.clear();
     Ok(())
 }
 

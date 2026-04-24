@@ -11,3 +11,7 @@ pub fn create_settings() {
         default_db_path: dbpath,
     };
 }
+
+pub struct State {
+    capture_count: usize,
+}

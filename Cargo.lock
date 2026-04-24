@@ -868,6 +868,7 @@ dependencies = [
  "clap",
  "derivative",
  "pnet",
+ "serde",
  "sqlx",
  "thiserror",
  "tokio",
