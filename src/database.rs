@@ -130,14 +130,18 @@ pub async fn create_sqlite_pool(db_name: &str) -> Result<Pool<Sqlite>, DatabaseE
     }
 }
 
-pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> {
+pub struct DatabaseSchema {
+    pub rows: Vec<String>,
+    pub row_count: usize,
+    pub file_size: usize,
+}
+
+pub async fn database_info(db_name: &str) -> Result<DatabaseSchema, DatabaseError> {
     let name = dbfmt(db_name);
     let pool = SqlitePool::connect(&name).await?;
-
     let rows = sqlx::query(
-        "SELECT sql FROM sqlite_master \
-         WHERE sql IS NOT NULL \
-         ORDER BY tbl_name, type DESC, name",
+        "SELECT * FROM sqlite_schema \
+         WHERE tbl_name NOT IN ('_sqlx_migrations')",
     )
     .fetch_all(&pool)
     .await?;
@@ -146,8 +150,14 @@ pub async fn database_info(db_name: &str) -> Result<Vec<String>, DatabaseError> 
         return Err(DatabaseError::NoTables);
     }
 
-    let ddl = rows.iter().map(|row| row.get::<String, _>("sql")).collect();
-    Ok(ddl)
+    let rows: Vec<String> = rows.iter().map(|row| row.get::<String, _>("sql")).collect();
+    let rowcount = rows.len(); // TODO: Why is this always 1?
+    let schema = DatabaseSchema {
+        rows,
+        row_count: rowcount,
+        file_size: 0,
+    };
+    Ok(schema)
 }
 
 #[tracing::instrument(skip_all, fields(batch_size = buffer.len()))]

@@ -74,14 +74,18 @@ enum DatabaseCommands {
     /// Create db with given name in given dir
     /// Default name if none provided: depends on capture type
     /// Default directory if none provided: "." unless specified in settings
+    #[command(alias = "m")]
     Create { db_name: String },
     /// List info of given database
+    #[command(alias = "i")]
     Info { db_name: String },
     /// List known databases
+    #[command(alias = "l")]
     List,
     /// List directory of last used database
     Dir,
     /// List size of given databases
+    #[command(alias = "s")]
     Size { db_name: String },
 }
 
@@ -127,8 +131,9 @@ async fn main() -> anyhow::Result<()> {
                 let db = create_db(db_name).await?;
             }
             DatabaseCommands::Info { db_name } => match database_info(db_name).await {
-                Ok(columns) => {
-                    for c in columns {
+                Ok(schema) => {
+                    println!("Rows in database: {}", schema.row_count);
+                    for c in schema.rows {
                         println!(">>>{}", c);
                     }
                 }
