@@ -2,16 +2,31 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Settings {
-    default_db_dir: String,  //Always exists. If not set, then value is "."
-    default_db_name: String, //Always exists. If not set, then value is "."
+    #[serde(default = "default_db_dir")]
+    db_dir: String,
+    #[serde(default = "default_db_name")]
+    db_name: String,
+    #[serde(default = "default_print_to_console")]
+    print_to_console: bool,
+}
+
+fn default_db_dir() -> String {
+    ".".to_string()
+}
+fn default_db_name() -> String {
+    "main.db".to_string()
+}
+fn default_print_to_console() -> bool {
+    false
 }
 
 pub fn create_settings() {
     let dbpath = String::from("databases");
     let dbname = String::from("hello");
     let settings = Settings {
-        default_db_dir: dbpath,
-        default_db_name: dbname,
+        db_dir: dbpath,
+        db_name: dbname,
+        print_to_console: true,
     };
 }
 
