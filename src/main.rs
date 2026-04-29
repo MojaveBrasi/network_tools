@@ -2,7 +2,7 @@ mod application_state;
 mod database;
 mod network;
 
-use crate::application_state::State;
+use crate::application_state::*;
 use crate::database::*;
 use crate::network::*;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -106,7 +106,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let state = State::init();
+    let settings = Settings::get()?;
+    let state = State::init(settings);
     let cli = Cli::parse();
 
     match &cli.cmd {
