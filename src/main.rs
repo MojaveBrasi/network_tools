@@ -143,12 +143,12 @@ async fn main() -> anyhow::Result<()> {
                 }
             },
             DatabaseCommands::List => {
-                list_databases(&state.default_db_dir);
+                list_databases(&state.settings.db_dir);
             }
             DatabaseCommands::Dir => {
                 println!(
                     "Current primary database directory: '{}'",
-                    state.default_db_dir
+                    state.settings.db_dir
                 );
             }
             DatabaseCommands::Size { db_name } => todo!(),
@@ -177,6 +177,5 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
-
     Ok(())
 }

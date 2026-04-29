@@ -18,13 +18,13 @@ pub enum StateError {
 #[derive(Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default = "default_settings_dir")]
-    path: String,
+    pub path: String,
     #[serde(default = "default_db_dir")]
-    db_dir: String,
+    pub db_dir: String,
     #[serde(default = "default_db_name")]
-    db_name: String,
+    pub db_name: String,
     #[serde(default = "default_print_to_console")]
-    print_to_console: bool,
+    pub print_to_console: bool,
 }
 fn default_settings_dir() -> String {
     "settings".to_string()
@@ -61,6 +61,7 @@ impl Settings {
         println!("Created settings file at {}", &s.path);
         Ok(())
     }
+    /// Get settings. Will create default if not exists
     pub fn get() -> Result<Settings, StateError> {
         let path = default_settings_dir() + "/settings.json";
         match fs::exists(&path) {
@@ -84,19 +85,13 @@ impl Settings {
 
 pub struct State {
     pub settings: Settings,
-    pub default_db_dir: String,
-    pub default_db_name: String,
     pub capture_count: usize,
 }
 
 impl State {
     pub fn init(settings: Settings) -> State {
-        let db_dir = settings.db_dir.clone();
-        let db_name = settings.db_name.clone();
         State {
             settings,
-            default_db_dir: db_dir,
-            default_db_name: db_name,
             capture_count: 0,
         }
     }

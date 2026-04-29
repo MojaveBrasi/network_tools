@@ -1,14 +1,14 @@
 ***ROADMAP***
 
 # Near Term Goals
-- [] Basic Tokio architecture
-- [] Database schema for captures
+- [x] Basic Tokio architecture
+- [x] Database schema for captures
 - [] Database schema for cataloging Ip/Macs
-- [] Settings.json (serde)
+- [x] Settings.json (serde)
 - [] Send & Handle ARP packets
 
 ## Longer Term Goals
-* Catalogue and match Ip/Macs based on known standars
+* Catalogue and match Ip/Macs based on known standards
     - Link local address ranges
     - Broadcast/Gateway addresses
     - Static addresses on LAN, if any
