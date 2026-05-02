@@ -1,10 +1,12 @@
 mod application_state;
 mod database;
 mod network;
+mod timeseries;
 
 use crate::application_state::*;
 use crate::database::*;
 use crate::network::*;
+use crate::timeseries::*;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::time::Instant;
 
@@ -87,6 +89,8 @@ enum DatabaseCommands {
     /// List size of given databases
     #[command(alias = "s")]
     Size { db_name: String },
+    #[command(alias = "t")]
+    TestDB,
 }
 
 #[derive(Subcommand)]
@@ -152,6 +156,9 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
             DatabaseCommands::Size { db_name } => todo!(),
+            DatabaseCommands::TestDB => {
+                timeseries::open_conn()?;
+            }
         },
         Commands::Settings { cmd } => match cmd {
             SettingsCommands::Create { settings_name } => todo!(),
