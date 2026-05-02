@@ -89,8 +89,8 @@ enum DatabaseCommands {
     /// List size of given databases
     #[command(alias = "s")]
     Size { db_name: String },
-    #[command(alias = "t")]
-    TestDB,
+    #[command(alias = "ts")]
+    TimeSeries,
 }
 
 #[derive(Subcommand)]
@@ -156,8 +156,9 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
             DatabaseCommands::Size { db_name } => todo!(),
-            DatabaseCommands::TestDB => {
-                timeseries::open_conn()?;
+            DatabaseCommands::TimeSeries => {
+                let ts_path = String::from("timeseries/hello");
+                let w = TimeSeriesWriter::new().at(&ts_path)?.connect()?;
             }
         },
         Commands::Settings { cmd } => match cmd {

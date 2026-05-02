@@ -17,6 +17,7 @@ pub enum StateError {
 
 #[derive(Serialize, Deserialize)]
 pub struct Settings {
+    ///Path for the settings.json itself
     #[serde(default = "default_settings_dir")]
     pub path: String,
     #[serde(default = "default_db_dir")]

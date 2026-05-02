@@ -100,7 +100,8 @@ pub fn list_databases(db_dir: &str) {
     }
 }
 
-fn dbfmt(db_name: &str) -> String {
+/// Add ".db" to path if not exists
+pub fn dbfmt(db_name: &str) -> String {
     if db_name.ends_with(".db") {
         db_name.to_string()
     } else {
