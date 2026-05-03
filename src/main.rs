@@ -76,8 +76,11 @@ enum DatabaseCommands {
     /// Create db with given name in given dir
     /// Default name if none provided: depends on capture type
     /// Default directory if none provided: "." unless specified in settings
-    #[command(alias = "m")]
-    Create { db_name: String },
+    #[command(alias = "c")]
+    Create { 
+        #[command(subcommand)]
+        cmd: DbType 
+    },
     /// List info of given database
     #[command(alias = "i")]
     Info { db_name: String },
@@ -89,8 +92,12 @@ enum DatabaseCommands {
     /// List size of given databases
     #[command(alias = "s")]
     Size { db_name: String },
-    #[command(alias = "ts")]
-    TimeSeries,
+}
+
+#[derive(Subcommand)]
+enum DbType {
+    Sqlite { db_name: String },
+    Duck {db_name: String },
 }
 
 #[derive(Subcommand)]
@@ -132,8 +139,13 @@ async fn main() -> anyhow::Result<()> {
             },
         },
         Commands::Database { cmd } => match cmd {
-            DatabaseCommands::Create { db_name } => {
-                let db = create_db(db_name).await?;
+            DatabaseCommands::Create { cmd } => match cmd {
+                DbType::Sqlite { db_name } => {
+                    let db = create_db(db_name).await?;
+                }
+                DbType::Duck { db_name } => {
+                    let ts = TimeSeriesWriter::new().at(&db_name)?.connect()?;
+                }
             }
             DatabaseCommands::Info { db_name } => match database_info(db_name).await {
                 Ok(schema) => {
@@ -156,10 +168,6 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
             DatabaseCommands::Size { db_name } => todo!(),
-            DatabaseCommands::TimeSeries => {
-                let ts_path = String::from("timeseries/hello");
-                let w = TimeSeriesWriter::new().at(&ts_path)?.connect()?;
-            }
         },
         Commands::Settings { cmd } => match cmd {
             SettingsCommands::Create { settings_name } => todo!(),

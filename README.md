@@ -1,7 +1,14 @@
-# Network Analysis Tools
+# Network Traffic Capture Server
 
-## The Tech
-* Rust: tokio, pnet, clap: Fast async packet capture with an easy command line interface
-* DB(Sqlx): Configurable Sqlite databases of network traffic, maybe support for Postgres later
-* GUI: Web dashboard, maybe a TUI
-* AI: Context window shaping & instructions configuration to enable automated analysis
+## About
+* CLI for Capturing and analyzing traffic in a LAN
+* Web dashboard eventually I guess
+
+## Dual Embedded Database
+* Packet captures are stored in columnar fashion with DuckDB for timeseries analysis
+* Other metrics stored in SQLite relational database
+
+## Async Runtime 
+* The rust pnet library, which uses libpcap, is single-threaded. Packets move through MPSC channel
+* Multiple concurrent database writers which can be added/removed at runtime
+
